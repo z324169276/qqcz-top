@@ -1,0 +1,87 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = 'https://tjnpkfslayqlnzxhzlcg.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqbnBrZnNsYXlxbG56eGh6bGNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NzcwMzQsImV4cCI6MjA5NDA1MzAzNH0.-P6iiEA5FXAjU0od22KlqgB2fV4q3oLi7t9yj2bbdmI';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export const generateFamilyCode = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+export const createFamily = async (familyName: string): Promise<string> => {
+  let familyCode: string;
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    familyCode = generateFamilyCode();
+    
+    const { data, error } = await supabase
+      .from('families')
+      .select('familycode')
+      .eq('familycode', familyCode)
+      .single();
+    
+    if (error || !data) {
+      const defaultMember = {
+        id: Date.now().toString(),
+        name: '我',
+        avatar: '👦',
+        points: 0,
+        isOwner: true,
+      };
+      
+      const { error: insertError } = await supabase
+        .from('families')
+        .insert({
+          familycode: familyCode,
+          familyname: familyName,
+          points: 0,
+          tasks: [],
+          rewards: [],
+          history: [],
+          members: [defaultMember],
+        });
+      
+      if (!insertError) {
+        localStorage.setItem('familyId', familyCode);
+        localStorage.setItem('memberId', defaultMember.id);
+        return familyCode;
+      }
+    }
+    attempts++;
+  }
+
+  throw new Error('无法生成唯一邀请码，请重试');
+};
+
+export const joinFamily = async (familyCode: string): Promise<{ success: boolean; message: string; familyName?: string }> => {
+  const familyCodeUpper = familyCode.toUpperCase().trim();
+  
+  const { data, error } = await supabase
+    .from('families')
+    .select('familycode, familyname')
+    .eq('familycode', familyCodeUpper)
+    .single();
+
+  if (error || !data) {
+    return { success: false, message: '邀请码不存在' };
+  }
+
+  localStorage.setItem('familyId', familyCodeUpper);
+  return { 
+    success: true, 
+    message: '加入成功', 
+    familyName: data.familyname 
+  };
+};
+
+export const initSupabase = async (): Promise<void> => {
+  return Promise.resolve();
+};
