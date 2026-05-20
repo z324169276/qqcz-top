@@ -19,12 +19,10 @@ interface LoginAttempt {
   success: boolean;
 }
 
-const SESSION_KEY = 'admin_session';
-const SESSION_DURATION = 2 * 60 * 60 * 1000;
-
 export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const [families, setFamilies] = useState<FamilyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -32,7 +30,6 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const ADMIN_PASSWORD = 'admin1823@';
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_DURATION = 5 * 60 * 1000;
 
@@ -53,15 +50,15 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     checkLockout();
-    const savedSession = localStorage.getItem(SESSION_KEY);
-    if (savedSession) {
-      const session = JSON.parse(savedSession);
-      if (Date.now() < session.expires) {
-        setIsAuthenticated(true);
-      } else {
-        localStorage.removeItem(SESSION_KEY);
-      }
-    }
+    supabase.auth.getSession().then(({ data }) => {
+      setIsAuthenticated(!!data.session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [checkLockout]);
 
   useEffect(() => {
@@ -87,7 +84,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -96,34 +93,34 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        expires: Date.now() + SESSION_DURATION
-      }));
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (!error) {
       localStorage.removeItem('admin_lockout');
       setLoginAttempts([]);
-    } else {
-      const attempts = [...loginAttempts, { time: Date.now(), success: false }];
-      setLoginAttempts(attempts);
-      localStorage.setItem('admin_attempts', JSON.stringify(attempts));
+      setPassword('');
+      return;
+    }
 
-      const failedAttempts = attempts.filter(a => !a.success && Date.now() - a.time < 15 * 60 * 1000).length;
-      if (failedAttempts >= MAX_ATTEMPTS) {
-        const lockoutTime = Date.now() + LOCKOUT_DURATION;
-        localStorage.setItem('admin_lockout', lockoutTime.toString());
-        setLockoutUntil(lockoutTime);
-        setErrorMessage('登录失败次数过多，请5分钟后再试');
-      } else {
-        setErrorMessage(`密码错误，剩余尝试次数：${MAX_ATTEMPTS - failedAttempts}`);
-      }
+    const attempts = [...loginAttempts, { time: Date.now(), success: false }];
+    setLoginAttempts(attempts);
+    localStorage.setItem('admin_attempts', JSON.stringify(attempts));
+
+    const failedAttempts = attempts.filter(a => !a.success && Date.now() - a.time < 15 * 60 * 1000).length;
+    if (failedAttempts >= MAX_ATTEMPTS) {
+      const lockoutTime = Date.now() + LOCKOUT_DURATION;
+      localStorage.setItem('admin_lockout', lockoutTime.toString());
+      setLockoutUntil(lockoutTime);
+      setErrorMessage('登录失败次数过多，请5分钟后再试');
+    } else {
+      setErrorMessage(`登录失败（${error.message}），剩余尝试次数：${MAX_ATTEMPTS - failedAttempts}`);
     }
     setPassword('');
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem(SESSION_KEY);
+    supabase.auth.signOut();
+    setFamilies([]);
   };
 
   const getTodayDate = () => {
@@ -210,20 +207,32 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
               <Shield className="w-8 h-8 text-indigo-600" />
             </div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">管理后台</h1>
-            <p className="text-gray-500">请输入管理员密码访问</p>
+            <p className="text-gray-500">请输入管理员账号访问</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <div className="relative">
                 <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="管理员邮箱"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black"
+                  disabled={!!lockoutUntil}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div>
+              <div className="relative">
+                <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入管理员密码"
+                  placeholder="管理员密码"
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black pr-12"
                   disabled={!!lockoutUntil}
-                  autoFocus
                 />
                 <button
                   type="button"
@@ -242,7 +251,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
             </div>
             <button
               type="submit"
-              disabled={!!lockoutUntil || !password}
+              disabled={!!lockoutUntil || !email || !password}
               className="w-full py-3 px-6 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {lockoutUntil ? '请稍后再试' : '登录'}
