@@ -25,10 +25,18 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [adminCheckError, setAdminCheckError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [dataErrorMessage, setDataErrorMessage] = useState('');
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [setPasswordMessage, setSetPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_DURATION = 5 * 60 * 1000;
@@ -53,13 +61,49 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
     supabase.auth.getSession().then(({ data }) => {
       setIsAuthenticated(!!data.session);
     });
+    supabase.auth.getUser().then(({ data }) => {
+      setUserId(data.user?.id ?? null);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
+      setUserId(session?.user?.id ?? null);
     });
     return () => {
       subscription.unsubscribe();
     };
   }, [checkLockout]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId) {
+      setIsAdmin(null);
+      setAdminCheckError('');
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('admins')
+        .select('user_id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        setIsAdmin(false);
+        setAdminCheckError(error.message);
+        return;
+      }
+
+      setAdminCheckError('');
+      setIsAdmin(!!data);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, userId]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -69,6 +113,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setDataErrorMessage('');
     try {
       const { data, error } = await supabase
         .from('families')
@@ -79,6 +124,8 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
       setFamilies(data || []);
     } catch (error) {
       console.error('获取数据失败:', error);
+      setFamilies([]);
+      setDataErrorMessage(error instanceof Error ? error.message : '获取数据失败');
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +168,36 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const handleLogout = () => {
     supabase.auth.signOut();
     setFamilies([]);
+    setUserId(null);
+    setIsAdmin(null);
+    setAdminCheckError('');
+    setDataErrorMessage('');
+  };
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetPasswordMessage(null);
+
+    if (!newPassword || newPassword.length < 6) {
+      setSetPasswordMessage({ type: 'error', text: '密码至少 6 位' });
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setSetPasswordMessage({ type: 'error', text: '两次输入的密码不一致' });
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) {
+      setSetPasswordMessage({ type: 'error', text: `设置失败：${error.message}` });
+      return;
+    }
+
+    setSetPasswordMessage({ type: 'success', text: '密码设置成功' });
+    setNewPassword('');
+    setConfirmNewPassword('');
+    setShowSetPassword(false);
   };
 
   const getTodayDate = () => {
@@ -290,9 +367,30 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
             <div>
               <h1 className="text-2xl font-bold text-gray-800">管理后台</h1>
               <p className="text-gray-500 text-sm">家庭数据统计</p>
+              {userId && (
+                <p className="text-gray-400 text-xs mt-1">
+                  UID：{userId}
+                  {isAdmin !== null && (
+                    <span className={isAdmin ? 'text-green-600' : 'text-red-500'}>
+                      {' '}
+                      · {isAdmin ? '已授权管理员' : '未授权管理员'}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setSetPasswordMessage(null);
+                setShowSetPassword((v) => !v);
+              }}
+              className="px-4 py-2 bg-white text-gray-700 rounded-lg shadow-sm hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              <Shield className="w-4 h-4" />
+              设置密码
+            </button>
             <button
               onClick={fetchData}
               disabled={isLoading}
@@ -310,6 +408,90 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
             </button>
           </div>
         </div>
+
+        {showSetPassword && (
+          <div className="mb-6 bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+            <h2 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-indigo-600" />
+              设置/修改管理员密码
+            </h2>
+
+            <form onSubmit={handleSetPassword} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="新密码（至少 6 位）"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                placeholder="再次输入新密码"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-3 px-6 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all"
+                >
+                  保存密码
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSetPassword(false);
+                    setSetPasswordMessage(null);
+                    setNewPassword('');
+                    setConfirmNewPassword('');
+                  }}
+                  className="py-3 px-6 bg-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-300 transition-all"
+                >
+                  取消
+                </button>
+              </div>
+            </form>
+
+            {setPasswordMessage && (
+              <div className={`mt-3 text-sm ${setPasswordMessage.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+                {setPasswordMessage.text}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isAdmin === false && userId && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+              <div className="text-sm text-red-700">
+                <div className="font-medium">当前账号未被授权为管理员</div>
+                <div className="mt-1">
+                  这会导致在 RLS 开启时读取 families 全表结果为 0。请在 Supabase 的 public.admins 表插入该 UID：{userId}
+                </div>
+                {adminCheckError && <div className="mt-1">检查权限失败：{adminCheckError}</div>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {dataErrorMessage && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+            获取数据失败：{dataErrorMessage}
+          </div>
+        )}
 
         {/* 基础统计卡片 */}
         <div className="mb-6">
