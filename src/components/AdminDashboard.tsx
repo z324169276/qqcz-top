@@ -160,9 +160,16 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const canOperateFamilies = isAdmin === true;
+
+  const ensureCanOperateFamilies = () => {
+    if (canOperateFamilies) return true;
+    toast.error(isAdmin === null ? '管理员校验中，请稍等…' : '仅管理员可操作');
+    return false;
+  };
+
   const invokeAdminFamilyAction = async (action: 'update' | 'reset' | 'delete', family: FamilyData, extra?: Record<string, unknown>) => {
-    if (!isAdmin) {
-      toast.error('仅管理员可操作');
+    if (!ensureCanOperateFamilies()) {
       return;
     }
 
@@ -283,6 +290,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   }, [filteredSortedFamilies, page]);
 
   const openEditFamily = (family: FamilyData) => {
+    if (!ensureCanOperateFamilies()) return;
     setEditingFamily(family);
     setEditingFamilyName(family.familyname || '');
     setIsEditOpen(true);
@@ -928,24 +936,30 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => openEditFamily(family)}
-                            disabled={!isAdmin || actionLoading === `update:${family.familycode}`}
-                            className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                            disabled={actionLoading === `update:${family.familycode}`}
+                            className={`px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                           >
                             <Pencil className="w-4 h-4" />
                             编辑
                           </button>
                           <button
-                            onClick={() => setConfirmAction({ type: 'reset', family })}
-                            disabled={!isAdmin || actionLoading === `reset:${family.familycode}`}
-                            className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1"
+                            onClick={() => {
+                              if (!ensureCanOperateFamilies()) return;
+                              setConfirmAction({ type: 'reset', family });
+                            }}
+                            disabled={actionLoading === `reset:${family.familycode}`}
+                            className={`px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                           >
                             <RotateCcw className="w-4 h-4" />
                             清空
                           </button>
                           <button
-                            onClick={() => setConfirmAction({ type: 'delete', family })}
-                            disabled={!isAdmin || actionLoading === `delete:${family.familycode}`}
-                            className="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1"
+                            onClick={() => {
+                              if (!ensureCanOperateFamilies()) return;
+                              setConfirmAction({ type: 'delete', family });
+                            }}
+                            disabled={actionLoading === `delete:${family.familycode}`}
+                            className={`px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                           >
                             <Trash2 className="w-4 h-4" />
                             删除
@@ -986,24 +1000,30 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         onClick={() => openEditFamily(family)}
-                        disabled={!isAdmin || actionLoading === `update:${family.familycode}`}
-                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                        disabled={actionLoading === `update:${family.familycode}`}
+                        className={`px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                       >
                         <Pencil className="w-4 h-4" />
                         编辑
                       </button>
                       <button
-                        onClick={() => setConfirmAction({ type: 'reset', family })}
-                        disabled={!isAdmin || actionLoading === `reset:${family.familycode}`}
-                        className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1"
+                        onClick={() => {
+                          if (!ensureCanOperateFamilies()) return;
+                          setConfirmAction({ type: 'reset', family });
+                        }}
+                        disabled={actionLoading === `reset:${family.familycode}`}
+                        className={`px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                       >
                         <RotateCcw className="w-4 h-4" />
                         清空
                       </button>
                       <button
-                        onClick={() => setConfirmAction({ type: 'delete', family })}
-                        disabled={!isAdmin || actionLoading === `delete:${family.familycode}`}
-                        className="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1"
+                        onClick={() => {
+                          if (!ensureCanOperateFamilies()) return;
+                          setConfirmAction({ type: 'delete', family });
+                        }}
+                        disabled={actionLoading === `delete:${family.familycode}`}
+                        className={`px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1 ${canOperateFamilies ? '' : 'opacity-50'}`}
                       >
                         <Trash2 className="w-4 h-4" />
                         删除
@@ -1046,7 +1066,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                 </button>
                 <button
                   onClick={handleSaveEditFamily}
-                  disabled={!isAdmin || actionLoading === `update:${editingFamily.familycode}`}
+                  disabled={actionLoading === `update:${editingFamily.familycode}`}
                   className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
