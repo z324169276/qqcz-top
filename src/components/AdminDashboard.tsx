@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Home, Users, TrendingUp, Activity, Calendar, Trophy, ArrowLeft, Clock, Flame, BarChart3, LogOut, Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Home, Users, TrendingUp, Activity, Calendar, Trophy, ArrowLeft, Clock, Flame, BarChart3, LogOut, Eye, EyeOff, Shield, AlertCircle, Search, Pencil, RotateCcw, Trash2, Save, X } from 'lucide-react';
 import { supabase } from '../supabase';
+import toast from 'react-hot-toast';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface FamilyData {
   familycode: string;
@@ -37,9 +39,19 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [setPasswordMessage, setSetPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [sortKey, setSortKey] = useState<'created_at' | 'points' | 'members' | 'tasks' | 'familyname'>('created_at');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
+  const [page, setPage] = useState(1);
+  const [editingFamily, setEditingFamily] = useState<FamilyData | null>(null);
+  const [editingFamilyName, setEditingFamilyName] = useState('');
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<null | { type: 'reset' | 'delete'; family: FamilyData }>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_DURATION = 5 * 60 * 1000;
+  const PAGE_SIZE = 20;
 
   const getReadableErrorMessage = (error: unknown) => {
     if (!error) return '获取数据失败';
@@ -146,6 +158,130 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const invokeAdminFamilyAction = async (action: 'update' | 'reset' | 'delete', family: FamilyData, extra?: Record<string, unknown>) => {
+    if (!isAdmin) {
+      toast.error('仅管理员可操作');
+      return;
+    }
+
+    setActionLoading(`${action}:${family.familycode}`);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const { data, error } = await supabase.functions.invoke('admin-families', {
+        body: { action, familycode: family.familycode, ...extra },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (action === 'update') {
+        const updatedFamilyName = (extra?.familyname as string | undefined) ?? family.familyname;
+        setFamilies((prev) => prev.map((f) => (f.familycode === family.familycode ? { ...f, familyname: updatedFamilyName } : f)));
+        toast.success('家庭信息已更新');
+        return;
+      }
+
+      if (action === 'reset') {
+        setFamilies((prev) =>
+          prev.map((f) =>
+            f.familycode === family.familycode
+              ? { ...f, points: 0, tasks: [], rewards: [], history: [], members: [] }
+              : f
+          )
+        );
+        toast.success('家庭数据已清空');
+        return;
+      }
+
+      if (action === 'delete') {
+        setFamilies((prev) => prev.filter((f) => f.familycode !== family.familycode));
+        toast.success('家庭已删除');
+      }
+    } catch (err) {
+      toast.error(getReadableErrorMessage(err));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const filteredSortedFamilies = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase();
+    const filtered = keyword
+      ? families.filter((f) => (f.familycode ?? '').toLowerCase().includes(keyword) || (f.familyname ?? '').toLowerCase().includes(keyword))
+      : families.slice();
+
+    const getCreatedAtValue = (f: FamilyData) => {
+      const ts = f.created_at ? Date.parse(f.created_at) : 0;
+      return Number.isNaN(ts) ? 0 : ts;
+    };
+
+    const sorted = filtered.sort((a, b) => {
+      let av = 0;
+      let bv = 0;
+
+      if (sortKey === 'created_at') {
+        av = getCreatedAtValue(a);
+        bv = getCreatedAtValue(b);
+      } else if (sortKey === 'points') {
+        av = a.points || 0;
+        bv = b.points || 0;
+      } else if (sortKey === 'members') {
+        av = a.members?.length || 0;
+        bv = b.members?.length || 0;
+      } else if (sortKey === 'tasks') {
+        av = a.tasks?.length || 0;
+        bv = b.tasks?.length || 0;
+      }
+
+      if (sortKey === 'familyname') {
+        const result = (a.familyname || '').localeCompare(b.familyname || '', 'zh-Hans-CN');
+        return sortDir === 'asc' ? result : -result;
+      }
+
+      const diff = av - bv;
+      return sortDir === 'asc' ? diff : -diff;
+    });
+
+    return sorted;
+  }, [families, searchText, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSortedFamilies.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+    if (page < 1) setPage(1);
+  }, [page, totalPages]);
+
+  const pageFamilies = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredSortedFamilies.slice(start, start + PAGE_SIZE);
+  }, [filteredSortedFamilies, page]);
+
+  const openEditFamily = (family: FamilyData) => {
+    setEditingFamily(family);
+    setEditingFamilyName(family.familyname || '');
+    setIsEditOpen(true);
+  };
+
+  const closeEditFamily = () => {
+    setIsEditOpen(false);
+    setEditingFamily(null);
+    setEditingFamilyName('');
+  };
+
+  const handleSaveEditFamily = async () => {
+    if (!editingFamily) return;
+    const name = editingFamilyName.trim();
+    if (!name) {
+      toast.error('请输入家庭名称');
+      return;
+    }
+    await invokeAdminFamilyAction('update', editingFamily, { familyname: name });
+    closeEditFamily();
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -648,8 +784,41 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
         {/* 家庭列表 */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">家庭列表</h2>
-            <span className="text-sm text-gray-500">{families.length} 个家庭</span>
+            <div className="flex items-center gap-3">
+              <h2 className="font-semibold text-gray-800">家庭列表</h2>
+              <span className="text-sm text-gray-500">{filteredSortedFamilies.length} 个家庭</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={searchText}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="搜索家庭名/家庭码"
+                  className="w-48 md:w-64 pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all"
+                />
+              </div>
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as any)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white"
+              >
+                <option value="created_at">按创建时间</option>
+                <option value="points">按积分</option>
+                <option value="members">按成员数</option>
+                <option value="tasks">按任务数</option>
+                <option value="familyname">按家庭名称</option>
+              </select>
+              <button
+                onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50"
+              >
+                {sortDir === 'asc' ? '升序' : '降序'}
+              </button>
+            </div>
           </div>
 
           {isLoading ? (
@@ -664,6 +833,27 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
             </div>
           ) : (
             <div>
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                <div>
+                  第 {page} / {totalPages} 页（每页 {PAGE_SIZE} 条）
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    上一页
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
               {/* Mobile Cards (sm up: Table */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
@@ -687,10 +877,13 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         创建时间
                       </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        操作
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {families.map((family) => (
+                    {pageFamilies.map((family) => (
                     <tr key={family.familycode} className="hover:bg-gray-50">
                       <td className="px-4 py-4 whitespace-nowrap">
                         <span className="font-mono font-semibold text-indigo-600">{family.familycode}</span>
@@ -710,6 +903,34 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                       <td className="px-4 py-4 whitespace-nowrap text-gray-500 text-sm">
                         {family.created_at ? new Date(family.created_at).toLocaleDateString('zh-CN') : '-'}
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => openEditFamily(family)}
+                            disabled={!isAdmin || actionLoading === `update:${family.familycode}`}
+                            className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <Pencil className="w-4 h-4" />
+                            编辑
+                          </button>
+                          <button
+                            onClick={() => setConfirmAction({ type: 'reset', family })}
+                            disabled={!isAdmin || actionLoading === `reset:${family.familycode}`}
+                            className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            清空
+                          </button>
+                          <button
+                            onClick={() => setConfirmAction({ type: 'delete', family })}
+                            disabled={!isAdmin || actionLoading === `delete:${family.familycode}`}
+                            className="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            删除
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   </tbody>
@@ -718,7 +939,7 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
               
               {/* Mobile View: Cards */}
               <div className="sm:hidden divide-y divide-gray-100">
-                {families.map((family) => (
+                {pageFamilies.map((family) => (
                   <div key={family.familycode} className="p-4 hover:bg-gray-50">
                     <div className="flex items-start justify-between mb-3">
                       <div>
@@ -741,6 +962,32 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
                         {family.created_at ? new Date(family.created_at).toLocaleDateString('zh-CN') : '-'}
                       </div>
                     </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => openEditFamily(family)}
+                        disabled={!isAdmin || actionLoading === `update:${family.familycode}`}
+                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        编辑
+                      </button>
+                      <button
+                        onClick={() => setConfirmAction({ type: 'reset', family })}
+                        disabled={!isAdmin || actionLoading === `reset:${family.familycode}`}
+                        className="px-3 py-1.5 bg-white border border-orange-200 rounded-lg text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        清空
+                      </button>
+                      <button
+                        onClick={() => setConfirmAction({ type: 'delete', family })}
+                        disabled={!isAdmin || actionLoading === `delete:${family.familycode}`}
+                        className="px-3 py-1.5 bg-white border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        删除
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -748,6 +995,66 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
           )}
         </div>
       </div>
+      {isEditOpen && editingFamily && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeEditFamily} />
+          <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-lg font-semibold text-gray-800">编辑家庭</div>
+                <div className="text-sm text-gray-500 font-mono">{editingFamily.familycode}</div>
+              </div>
+              <button onClick={closeEditFamily} className="p-2 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                value={editingFamilyName}
+                onChange={(e) => setEditingFamilyName(e.target.value)}
+                placeholder="家庭名称"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={closeEditFamily}
+                  className="flex-1 px-4 py-3 rounded-xl bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveEditFamily}
+                  disabled={!isAdmin || actionLoading === `update:${editingFamily.familycode}`}
+                  className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction?.type === 'delete' ? '删除家庭' : '清空家庭数据'}
+        message={
+          confirmAction?.type === 'delete'
+            ? `将永久删除家庭「${confirmAction.family.familyname || '-'}」（${confirmAction.family.familycode}），不可恢复。`
+            : `将清空家庭「${confirmAction?.family.familyname || '-'}」（${confirmAction?.family.familycode}）的成员/任务/奖励/历史并将积分归零，不可恢复。`
+        }
+        confirmText={confirmAction?.type === 'delete' ? '删除' : '清空'}
+        confirmClass={confirmAction?.type === 'delete' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={async () => {
+          const current = confirmAction;
+          if (!current) return;
+          setConfirmAction(null);
+          await invokeAdminFamilyAction(current.type, current.family);
+        }}
+      />
     </div>
   );
 }
