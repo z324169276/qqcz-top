@@ -41,6 +41,24 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_DURATION = 5 * 60 * 1000;
 
+  const getReadableErrorMessage = (error: unknown) => {
+    if (!error) return '获取数据失败';
+    if (typeof error === 'string') return error;
+    if (typeof error === 'object') {
+      const anyError = error as any;
+      if (typeof anyError.message === 'string' && anyError.message) {
+        const extras = [anyError.details, anyError.hint, anyError.code].filter(Boolean).join(' | ');
+        return extras ? `${anyError.message} (${extras})` : anyError.message;
+      }
+      try {
+        return JSON.stringify(anyError);
+      } catch {
+        return '获取数据失败';
+      }
+    }
+    return String(error);
+  };
+
   const checkLockout = useCallback(() => {
     const stored = localStorage.getItem('admin_lockout');
     if (stored) {
@@ -117,15 +135,14 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
     try {
       const { data, error } = await supabase
         .from('families')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
 
       if (error) throw error;
       setFamilies(data || []);
     } catch (error) {
       console.error('获取数据失败:', error);
       setFamilies([]);
-      setDataErrorMessage(error instanceof Error ? error.message : '获取数据失败');
+      setDataErrorMessage(getReadableErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
