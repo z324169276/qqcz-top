@@ -40,9 +40,8 @@ export default async (req: Request) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return json({ error: 'Missing env vars' }, origin, 500);
   }
 
@@ -91,17 +90,13 @@ export default async (req: Request) => {
     return json({ error: 'Missing action or familycode' }, origin, 400);
   }
 
-  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { persistSession: false },
-  });
-
   if (action === 'update') {
     const familyname = payload?.familyname as string | undefined;
     if (!familyname) {
       return json({ error: 'Missing familyname' }, origin, 400);
     }
 
-    const { data, error } = await serviceClient
+    const { data, error } = await userClient
       .from('families')
       .update({ familyname })
       .eq('familycode', familycode)
@@ -121,7 +116,7 @@ export default async (req: Request) => {
       members: [] as unknown[],
     };
 
-    const { data, error } = await serviceClient
+    const { data, error } = await userClient
       .from('families')
       .update(resetData)
       .eq('familycode', familycode)
@@ -133,11 +128,10 @@ export default async (req: Request) => {
   }
 
   if (action === 'delete') {
-    const { error } = await serviceClient.from('families').delete().eq('familycode', familycode);
+    const { error } = await userClient.from('families').delete().eq('familycode', familycode);
     if (error) return json({ error: error.message }, origin, 400);
     return json({ ok: true }, origin);
   }
 
   return json({ error: 'Unsupported action' }, origin, 400);
 };
-

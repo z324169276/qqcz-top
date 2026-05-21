@@ -168,24 +168,38 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
 
     setActionLoading(`${action}:${family.familycode}`);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      const { data, error } = await supabase.functions.invoke('admin-families', {
-        body: { action, familycode: family.familycode, ...extra },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
       if (action === 'update') {
-        const updatedFamilyName = (extra?.familyname as string | undefined) ?? family.familyname;
-        setFamilies((prev) => prev.map((f) => (f.familycode === family.familycode ? { ...f, familyname: updatedFamilyName } : f)));
+        const familyname = (extra?.familyname as string | undefined)?.trim();
+        if (!familyname) throw new Error('缺少家庭名称');
+
+        const { error } = await supabase
+          .from('families')
+          .update({ familyname })
+          .eq('familycode', family.familycode);
+
+        if (error) throw error;
+
+        setFamilies((prev) => prev.map((f) => (f.familycode === family.familycode ? { ...f, familyname } : f)));
         toast.success('家庭信息已更新');
         return;
       }
 
       if (action === 'reset') {
+        const resetData = {
+          points: 0,
+          tasks: [],
+          rewards: [],
+          history: [],
+          members: [],
+        };
+
+        const { error } = await supabase
+          .from('families')
+          .update(resetData)
+          .eq('familycode', family.familycode);
+
+        if (error) throw error;
+
         setFamilies((prev) =>
           prev.map((f) =>
             f.familycode === family.familycode
@@ -198,6 +212,13 @@ export function AdminDashboard({ onBack }: { onBack: () => void }) {
       }
 
       if (action === 'delete') {
+        const { error } = await supabase
+          .from('families')
+          .delete()
+          .eq('familycode', family.familycode);
+
+        if (error) throw error;
+
         setFamilies((prev) => prev.filter((f) => f.familycode !== family.familycode));
         toast.success('家庭已删除');
       }
