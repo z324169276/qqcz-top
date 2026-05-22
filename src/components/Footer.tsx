@@ -27,6 +27,16 @@ export function Footer() {
           </div>
         </div>
       </div>
+      <div className="mt-4 text-center text-xs text-gray-400">
+        <a
+          href="https://beian.miit.gov.cn/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-gray-500 underline underline-offset-2"
+        >
+          鄂ICP备2021020060号-6
+        </a>
+      </div>
     </div>
   );
 }
