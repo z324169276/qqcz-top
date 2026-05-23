@@ -93,14 +93,67 @@ interface AppState {
 const syncToCloud = async (familyId: string, data: Record<string, any>, retryCount = 0, mutationId?: number) => {
   const effectiveMutationId = mutationId ?? Date.now();
   try {
+    // #region debug-point familycode-multi-device-sync.push-start
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId,
+        push: {
+          at: new Date().toISOString(),
+          ok: null,
+          retryCount,
+          mutationId: effectiveMutationId,
+        },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.push-start
+
     await api.updateFamily(familyId, data);
 
     const pendingSync = JSON.parse(localStorage.getItem('pendingSync') || '[]');
     const filtered = pendingSync.filter((item: any) => item.timestamp !== effectiveMutationId);
     localStorage.setItem('pendingSync', JSON.stringify(filtered));
+
+    // #region debug-point familycode-multi-device-sync.push-ok
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId,
+        push: {
+          at: new Date().toISOString(),
+          ok: true,
+          retryCount,
+          mutationId: effectiveMutationId,
+          pendingLeft: filtered.length,
+        },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.push-ok
     
   } catch (error: any) {
     console.error(`同步失败 (尝试 ${retryCount + 1}/${SYNC_RETRY_TIMES}):`, error?.message || error);
+
+    // #region debug-point familycode-multi-device-sync.push-error
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId,
+        push: {
+          at: new Date().toISOString(),
+          ok: false,
+          retryCount,
+          mutationId: effectiveMutationId,
+          error: error?.message || String(error),
+        },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.push-error
 
     const pendingItem = {
       familyId,
@@ -159,6 +212,18 @@ const baseStore = (set: any, get: any) => ({
   },
 
   initializeSync: async (familyId: string) => {
+    // #region debug-point familycode-multi-device-sync.init-start
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId,
+        init: { at: new Date().toISOString(), ok: null },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.init-start
+
     const data = await api.getFamily(familyId);
 
     if (data) {
@@ -177,6 +242,18 @@ const baseStore = (set: any, get: any) => ({
       const streakRewards = data.streak_rewards || defaultStreakRewards;
       const lastModified = (data as any).lastModified || (data as any).lastmodified || null;
 
+      // #region debug-point familycode-multi-device-sync.init-ok
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+        const prev = localStorage.getItem('__sync_debug');
+        const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+        localStorage.setItem('__sync_debug', JSON.stringify({
+          ...prevObj,
+          familyId,
+          init: { at: new Date().toISOString(), ok: true, remoteLastModified: lastModified },
+        }));
+      }
+      // #endregion debug-point familycode-multi-device-sync.init-ok
+
       set({
         points: currentMember?.points || data.points || 0,
         tasks: data.tasks || [],
@@ -193,6 +270,18 @@ const baseStore = (set: any, get: any) => ({
 
       syncPendingData(familyId);
     } else {
+      // #region debug-point familycode-multi-device-sync.init-empty
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+        const prev = localStorage.getItem('__sync_debug');
+        const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+        localStorage.setItem('__sync_debug', JSON.stringify({
+          ...prevObj,
+          familyId,
+          init: { at: new Date().toISOString(), ok: false, error: 'getFamily returned null' },
+        }));
+      }
+      // #endregion debug-point familycode-multi-device-sync.init-empty
+
       set({
         _hasHydrated: true,
         isLoading: false,
@@ -203,11 +292,57 @@ const baseStore = (set: any, get: any) => ({
   refreshFromCloud: async () => {
     const state = get();
     if (!state.familyId) return;
+
+    // #region debug-point familycode-multi-device-sync.poll-start
+    const debugEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+    if (debugEnabled) {
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId: state.familyId,
+        poll: { at: new Date().toISOString(), ok: null, localLastModified: state.lastModified || null },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.poll-start
+
     const data = await api.getFamily(state.familyId);
-    if (!data) return;
+    if (!data) {
+      // #region debug-point familycode-multi-device-sync.poll-empty
+      if (debugEnabled) {
+        const prev = localStorage.getItem('__sync_debug');
+        const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+        localStorage.setItem('__sync_debug', JSON.stringify({
+          ...prevObj,
+          familyId: state.familyId,
+          poll: { at: new Date().toISOString(), ok: false, error: 'getFamily returned null', localLastModified: state.lastModified || null },
+        }));
+      }
+      // #endregion debug-point familycode-multi-device-sync.poll-empty
+      return;
+    }
 
     const remoteLastModified = (data as any).lastModified || (data as any).lastmodified || null;
-    if (remoteLastModified && state.lastModified && remoteLastModified === state.lastModified) return;
+    if (remoteLastModified && state.lastModified && remoteLastModified === state.lastModified) {
+      // #region debug-point familycode-multi-device-sync.poll-skip
+      if (debugEnabled) {
+        const prev = localStorage.getItem('__sync_debug');
+        const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+        localStorage.setItem('__sync_debug', JSON.stringify({
+          ...prevObj,
+          familyId: state.familyId,
+          poll: {
+            at: new Date().toISOString(),
+            ok: true,
+            skipped: true,
+            remoteLastModified,
+            localLastModified: state.lastModified || null,
+          },
+        }));
+      }
+      // #endregion debug-point familycode-multi-device-sync.poll-skip
+      return;
+    }
 
     const members = data.members || [];
     const storedMemberId = localStorage.getItem('memberId');
@@ -221,6 +356,51 @@ const baseStore = (set: any, get: any) => ({
 
     const currentMember = members.find((m: Member) => m.id === currentMemberId);
     const streakRewards = data.streak_rewards || defaultStreakRewards;
+
+    // #region debug-point familycode-multi-device-sync.poll-apply
+    if (debugEnabled) {
+      const clientInfo = api.getClient();
+      let authUserId: string | null = null;
+      let membershipOk: boolean | null = null;
+      let membershipError: string | null = null;
+
+      if (clientInfo.type === 'supabase') {
+        try {
+          const supabase = clientInfo.client as any;
+          const { data: userData } = await supabase.auth.getUser();
+          authUserId = userData.user?.id || null;
+          if (authUserId) {
+            const { data: memData, error: memError } = await supabase
+              .from('family_memberships')
+              .select('familycode')
+              .eq('user_id', authUserId)
+              .eq('familycode', state.familyId)
+              .maybeSingle();
+            membershipOk = !!memData && !memError;
+            membershipError = memError?.message || null;
+          }
+        } catch (e: any) {
+          membershipError = e?.message || String(e);
+        }
+      }
+
+      const prev = localStorage.getItem('__sync_debug');
+      const prevObj = prev ? (() => { try { return JSON.parse(prev); } catch { return {}; } })() : {};
+      localStorage.setItem('__sync_debug', JSON.stringify({
+        ...prevObj,
+        familyId: state.familyId,
+        authUserId,
+        membership: { ok: membershipOk, error: membershipError },
+        poll: {
+          at: new Date().toISOString(),
+          ok: true,
+          skipped: false,
+          remoteLastModified,
+          localLastModified: state.lastModified || null,
+        },
+      }));
+    }
+    // #endregion debug-point familycode-multi-device-sync.poll-apply
 
     set({
       points: currentMember?.points || data.points || 0,

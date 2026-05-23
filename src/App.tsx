@@ -16,12 +16,55 @@ import { LogoutProvider, useLogout } from './contexts/LogoutContext';
 
 type TabType = 'tasks' | 'rewards' | 'history' | 'stats';
 
+function SyncDebugPanel() {
+  const [debugText, setDebugText] = useState('');
+
+  useEffect(() => {
+    const read = () => {
+      const raw = localStorage.getItem('__sync_debug') || '';
+      setDebugText(raw);
+    };
+
+    read();
+    const interval = window.setInterval(read, 500);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  if (!debugText) return null;
+
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(debugText);
+  } catch {
+    parsed = { raw: debugText };
+  }
+
+  return (
+    <div className="fixed bottom-4 left-4 right-4 z-[9999] max-w-2xl mx-auto pointer-events-none">
+      <div className="pointer-events-auto bg-black/80 text-white rounded-xl p-3 text-xs space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-semibold">同步诊断（debug=1）</div>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(JSON.stringify(parsed, null, 2))}
+            className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+          >
+            复制
+          </button>
+        </div>
+        <pre className="whitespace-pre-wrap break-words leading-relaxed max-h-40 overflow-auto">{JSON.stringify(parsed, null, 2)}</pre>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [isLoading, setIsLoading] = useState(true);
   const [showFamilySetup, setShowFamilySetup] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [debugMode, setDebugMode] = useState(false);
   
   const initialized = useRef(false);
   const { isLoggedOut, setIsLoggedOut } = useLogout();
@@ -41,6 +84,8 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    setDebugMode(new URLSearchParams(window.location.search).has('debug'));
+
     if (initialized.current) return;
     initialized.current = true;
 
@@ -150,6 +195,7 @@ function AppContent() {
           }}
         />
         <FamilySetup onComplete={handleFamilyComplete} onShowAdmin={() => setShowAdmin(true)} />
+        {debugMode ? <SyncDebugPanel /> : null}
       </>
     );
   }
@@ -166,6 +212,7 @@ function AppContent() {
           },
         }}
       />
+      {debugMode ? <SyncDebugPanel /> : null}
 
       <Header onShowAdmin={() => setShowAdmin(true)} />
 
