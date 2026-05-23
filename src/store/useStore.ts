@@ -176,6 +176,11 @@ const baseStore = (set: any, get: any) => ({
 
       const streakRewards = data.streak_rewards || defaultStreakRewards;
       const lastModified = (data as any).lastModified || (data as any).lastmodified || null;
+      const remotePoints = typeof (data as any).points === 'number' ? (data as any).points : 0;
+      const chosenPoints = remotePoints || currentMember?.points || 0;
+      const normalizedMembers = members.map((m: Member) =>
+        m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
+      );
 
       // #region debug-point points-adjust-revert.init-choice
       if (new URLSearchParams(window.location.search).has('debugPoints')) {
@@ -189,18 +194,18 @@ const baseStore = (set: any, get: any) => ({
             memberPoints: currentMember?.points ?? null,
             lastModified,
           },
-          chosenPoints: (currentMember?.points || (data as any).points || 0),
+          chosenPoints,
         }));
       }
       // #endregion debug-point points-adjust-revert.init-choice
 
       set({
-        points: currentMember?.points || data.points || 0,
+        points: chosenPoints,
         tasks: data.tasks || [],
         rewards: data.rewards || [],
         history: data.history || [],
         familyName: data.familyname || '',
-        members: members,
+        members: normalizedMembers,
         currentMemberId: currentMemberId,
         streakRewards: streakRewards,
         lastModified,
@@ -239,6 +244,11 @@ const baseStore = (set: any, get: any) => ({
 
     const currentMember = members.find((m: Member) => m.id === currentMemberId);
     const streakRewards = data.streak_rewards || defaultStreakRewards;
+    const remotePoints = typeof (data as any).points === 'number' ? (data as any).points : 0;
+    const chosenPoints = remotePoints || currentMember?.points || 0;
+    const normalizedMembers = members.map((m: Member) =>
+      m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
+    );
 
     // #region debug-point points-adjust-revert.refresh-choice
     if (new URLSearchParams(window.location.search).has('debugPoints')) {
@@ -253,18 +263,18 @@ const baseStore = (set: any, get: any) => ({
           memberPoints: currentMember?.points ?? null,
           lastModified: remoteLastModified,
         },
-        chosenPoints: (currentMember?.points || (data as any).points || 0),
+        chosenPoints,
       }));
     }
     // #endregion debug-point points-adjust-revert.refresh-choice
 
     set({
-      points: currentMember?.points || data.points || 0,
+      points: chosenPoints,
       tasks: data.tasks || [],
       rewards: data.rewards || [],
       history: data.history || [],
       familyName: data.familyname || '',
-      members: members,
+      members: normalizedMembers,
       currentMemberId: currentMemberId,
       streakRewards: streakRewards,
       lastModified: remoteLastModified,
@@ -568,8 +578,12 @@ const baseStore = (set: any, get: any) => ({
     const state = get();
     if (!state.familyId) return;
 
-    set({ points: amount });
-    syncToCloud(state.familyId, { points: amount });
+    const updatedMembers = state.members.map((m: Member) =>
+      m.id === state.currentMemberId ? { ...m, points: amount } : m
+    );
+
+    set({ points: amount, members: updatedMembers });
+    syncToCloud(state.familyId, { points: amount, members: updatedMembers });
   },
 
   addMember: (name: string, avatar?: string) => {
