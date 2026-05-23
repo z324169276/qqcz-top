@@ -14,6 +14,7 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
   const familyId = useStore((state) => state.familyId);
   const currentMemberId = useStore((state) => state.currentMemberId);
   const history = useStore((state) => state.history);
+  const members = useStore((state) => state.members);
   const [newPoints, setNewPoints] = useState<number>(points);
   const [reason, setReason] = useState('');
   const [pin, setPin] = useState('');
@@ -57,6 +58,7 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
     };
 
     const newHistory = [adjustment, ...history];
+    const updatedMembers = members.map((m) => (m.id === currentMemberId ? { ...m, points: newPoints } : m));
 
     if (familyId) {
       // #region debug-point points-adjust-revert.direct.before-cloud
@@ -74,14 +76,20 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
       }
       // #endregion debug-point points-adjust-revert.direct.before-cloud
 
-      await supabase
+      const { error } = await supabase
         .from('families')
         .update({ 
           points: newPoints,
+          members: updatedMembers,
           history: newHistory,
           lastModified: new Date().toISOString()
         })
         .eq('familycode', familyId);
+
+      if (error) {
+        toast.error(error.message || '积分修改失败');
+        return;
+      }
 
       // #region debug-point points-adjust-revert.direct.after-cloud
       if (new URLSearchParams(window.location.search).has('debugPoints')) {
@@ -102,6 +110,7 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
     useStore.setState({
       points: newPoints,
       history: newHistory,
+      members: updatedMembers,
     });
 
     // #region debug-point points-adjust-revert.direct.after-local
