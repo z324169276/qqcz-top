@@ -249,7 +249,19 @@ const baseStore = (set: any, get: any) => ({
         localStorage.setItem('__sync_debug', JSON.stringify({
           ...prevObj,
           familyId,
-          init: { at: new Date().toISOString(), ok: true, remoteLastModified: lastModified },
+          init: {
+            at: new Date().toISOString(),
+            ok: true,
+            remoteLastModified: lastModified,
+            currentMemberId,
+            counts: {
+              members: members.length,
+              tasks: (data.tasks || []).length,
+              rewards: (data.rewards || []).length,
+              history: (data.history || []).length,
+              points: (currentMember?.points ?? data.points ?? 0),
+            },
+          },
         }));
       }
       // #endregion debug-point familycode-multi-device-sync.init-ok
@@ -337,6 +349,14 @@ const baseStore = (set: any, get: any) => ({
             skipped: true,
             remoteLastModified,
             localLastModified: state.lastModified || null,
+            currentMemberId: state.currentMemberId || null,
+            counts: {
+              members: state.members.length,
+              tasks: state.tasks.length,
+              rewards: state.rewards.length,
+              history: state.history.length,
+              points: state.points,
+            },
           },
         }));
       }
@@ -397,6 +417,14 @@ const baseStore = (set: any, get: any) => ({
           skipped: false,
           remoteLastModified,
           localLastModified: state.lastModified || null,
+          currentMemberId,
+          counts: {
+            members: members.length,
+            tasks: (data.tasks || []).length,
+            rewards: (data.rewards || []).length,
+            history: (data.history || []).length,
+            points: (currentMember?.points ?? data.points ?? 0),
+          },
         },
       }));
     }
