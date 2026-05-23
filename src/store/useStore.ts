@@ -182,23 +182,6 @@ const baseStore = (set: any, get: any) => ({
         m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
       );
 
-      // #region debug-point points-adjust-revert.init-choice
-      if (new URLSearchParams(window.location.search).has('debugPoints')) {
-        localStorage.setItem('__points_adjust_debug', JSON.stringify({
-          at: new Date().toISOString(),
-          source: 'initializeSync',
-          familyId,
-          currentMemberId,
-          remote: {
-            dataPoints: (data as any).points ?? null,
-            memberPoints: currentMember?.points ?? null,
-            lastModified,
-          },
-          chosenPoints,
-        }));
-      }
-      // #endregion debug-point points-adjust-revert.init-choice
-
       set({
         points: chosenPoints,
         tasks: data.tasks || [],
@@ -249,24 +232,6 @@ const baseStore = (set: any, get: any) => ({
     const normalizedMembers = members.map((m: Member) =>
       m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
     );
-
-    // #region debug-point points-adjust-revert.refresh-choice
-    if (new URLSearchParams(window.location.search).has('debugPoints')) {
-      localStorage.setItem('__points_adjust_debug', JSON.stringify({
-        at: new Date().toISOString(),
-        source: 'refreshFromCloud',
-        familyId: state.familyId,
-        currentMemberId,
-        localPoints: state.points,
-        remote: {
-          dataPoints: (data as any).points ?? null,
-          memberPoints: currentMember?.points ?? null,
-          lastModified: remoteLastModified,
-        },
-        chosenPoints,
-      }));
-    }
-    // #endregion debug-point points-adjust-revert.refresh-choice
 
     set({
       points: chosenPoints,
@@ -545,22 +510,6 @@ const baseStore = (set: any, get: any) => ({
       history: newHistoryArray,
       members: updatedMembers,
     });
-
-    // #region debug-point points-adjust-revert.adjust.after-local
-    if (new URLSearchParams(window.location.search).has('debugPoints')) {
-      const currentMember = updatedMembers.find((m: Member) => m.id === state.currentMemberId);
-      localStorage.setItem('__points_adjust_debug', JSON.stringify({
-        at: new Date().toISOString(),
-        source: 'adjustPoints',
-        familyId: state.familyId,
-        currentMemberId: state.currentMemberId,
-        oldPoints: state.points,
-        newPoints,
-        amount,
-        localMemberPoints: currentMember?.points ?? null,
-      }));
-    }
-    // #endregion debug-point points-adjust-revert.adjust.after-local
 
     syncToCloud(state.familyId, {
       points: newPoints,

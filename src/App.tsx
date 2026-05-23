@@ -16,55 +16,12 @@ import { LogoutProvider, useLogout } from './contexts/LogoutContext';
 
 type TabType = 'tasks' | 'rewards' | 'history' | 'stats';
 
-function PointsDebugPanel() {
-  const [debugText, setDebugText] = useState('');
-
-  useEffect(() => {
-    const read = () => {
-      const raw = localStorage.getItem('__points_adjust_debug') || '';
-      setDebugText(raw);
-    };
-
-    read();
-    const interval = window.setInterval(read, 500);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  if (!debugText) return null;
-
-  let parsed: any = null;
-  try {
-    parsed = JSON.parse(debugText);
-  } catch {
-    parsed = { raw: debugText };
-  }
-
-  return (
-    <div className="fixed bottom-4 left-4 right-4 z-[9999] max-w-2xl mx-auto pointer-events-none">
-      <div className="pointer-events-auto bg-black/80 text-white rounded-xl p-3 text-xs space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="font-semibold">积分诊断（debugPoints=1）</div>
-          <button
-            type="button"
-            onClick={() => navigator.clipboard.writeText(JSON.stringify(parsed, null, 2))}
-            className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
-          >
-            复制
-          </button>
-        </div>
-        <pre className="whitespace-pre-wrap break-words leading-relaxed max-h-40 overflow-auto">{JSON.stringify(parsed, null, 2)}</pre>
-      </div>
-    </div>
-  );
-}
-
 function AppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [isLoading, setIsLoading] = useState(true);
   const [showFamilySetup, setShowFamilySetup] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
-  const [debugPointsMode, setDebugPointsMode] = useState(false);
   
   const initialized = useRef(false);
   const { isLoggedOut, setIsLoggedOut } = useLogout();
@@ -84,8 +41,6 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    setDebugPointsMode(new URLSearchParams(window.location.search).has('debugPoints'));
-
     if (initialized.current) return;
     initialized.current = true;
 
@@ -198,7 +153,6 @@ function AppContent() {
           }}
         />
         <FamilySetup onComplete={handleFamilyComplete} onShowAdmin={() => setShowAdmin(true)} />
-        {debugPointsMode ? <PointsDebugPanel /> : null}
       </>
     );
   }
@@ -215,7 +169,6 @@ function AppContent() {
           },
         }}
       />
-      {debugPointsMode ? <PointsDebugPanel /> : null}
 
       <Header onShowAdmin={() => setShowAdmin(true)} />
 

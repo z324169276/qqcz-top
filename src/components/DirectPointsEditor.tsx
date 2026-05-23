@@ -61,21 +61,6 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
     const updatedMembers = members.map((m) => (m.id === currentMemberId ? { ...m, points: newPoints } : m));
 
     if (familyId) {
-      // #region debug-point points-adjust-revert.direct.before-cloud
-      if (new URLSearchParams(window.location.search).has('debugPoints')) {
-        localStorage.setItem('__points_adjust_debug', JSON.stringify({
-          at: new Date().toISOString(),
-          source: 'direct-points-editor',
-          phase: 'before-cloud',
-          familyId,
-          currentMemberId,
-          oldPoints: points,
-          newPoints,
-          diff,
-        }));
-      }
-      // #endregion debug-point points-adjust-revert.direct.before-cloud
-
       const { error } = await supabase
         .from('families')
         .update({ 
@@ -90,21 +75,6 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
         toast.error(error.message || '积分修改失败');
         return;
       }
-
-      // #region debug-point points-adjust-revert.direct.after-cloud
-      if (new URLSearchParams(window.location.search).has('debugPoints')) {
-        localStorage.setItem('__points_adjust_debug', JSON.stringify({
-          at: new Date().toISOString(),
-          source: 'direct-points-editor',
-          phase: 'after-cloud',
-          familyId,
-          currentMemberId,
-          oldPoints: points,
-          newPoints,
-          diff,
-        }));
-      }
-      // #endregion debug-point points-adjust-revert.direct.after-cloud
     }
 
     useStore.setState({
@@ -112,21 +82,6 @@ export const DirectPointsEditor = ({ isOpen, onClose }: DirectPointsEditorProps)
       history: newHistory,
       members: updatedMembers,
     });
-
-    // #region debug-point points-adjust-revert.direct.after-local
-    if (new URLSearchParams(window.location.search).has('debugPoints')) {
-      localStorage.setItem('__points_adjust_debug', JSON.stringify({
-        at: new Date().toISOString(),
-        source: 'direct-points-editor',
-        phase: 'after-local',
-        familyId,
-        currentMemberId,
-        oldPoints: points,
-        newPoints,
-        diff,
-      }));
-    }
-    // #endregion debug-point points-adjust-revert.direct.after-local
 
     toast.success('积分已修改');
     onClose();
