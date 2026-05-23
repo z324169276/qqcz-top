@@ -31,6 +31,7 @@ function AppContent() {
   const _hasHydrated = useStore((state) => state._hasHydrated);
   const initializeSync = useStore((state) => state.initializeSync);
   const setFamilyId = useStore((state) => state.setFamilyId);
+  const refreshFromCloud = useStore((state) => (state as any).refreshFromCloud);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('appTheme') as any;
@@ -72,6 +73,29 @@ function AppContent() {
 
     init();
   }, []);
+
+  useEffect(() => {
+    if (!familyId || !refreshFromCloud) return;
+
+    refreshFromCloud();
+
+    const interval = window.setInterval(() => {
+      refreshFromCloud();
+    }, 5000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshFromCloud();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [familyId, refreshFromCloud]);
 
   const handleFamilyComplete = useCallback((newFamilyId: string) => {
     localStorage.setItem('familyId', newFamilyId);

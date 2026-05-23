@@ -19,6 +19,12 @@ export const createFamily = async (familyName: string): Promise<string> => {
   let attempts = 0;
   const maxAttempts = 10;
 
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) {
+    throw new Error('登录状态异常，请刷新重试');
+  }
+
   while (attempts < maxAttempts) {
     familyCode = generateFamilyCode();
     
@@ -50,6 +56,12 @@ export const createFamily = async (familyName: string): Promise<string> => {
         });
       
       if (!insertError) {
+        await supabase
+          .from('family_memberships')
+          .upsert(
+            { user_id: userId, familycode: familyCode },
+            { onConflict: 'user_id,familycode', ignoreDuplicates: true }
+          );
         localStorage.setItem('familyId', familyCode);
         localStorage.setItem('memberId', defaultMember.id);
         return familyCode;
@@ -64,6 +76,23 @@ export const createFamily = async (familyName: string): Promise<string> => {
 export const joinFamily = async (familyCode: string): Promise<{ success: boolean; message: string; familyName?: string }> => {
   const familyCodeUpper = familyCode.toUpperCase().trim();
   
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) {
+    return { success: false, message: '登录状态异常，请刷新重试' };
+  }
+
+  const { error: membershipError } = await supabase
+    .from('family_memberships')
+    .upsert(
+      { user_id: userId, familycode: familyCodeUpper },
+      { onConflict: 'user_id,familycode', ignoreDuplicates: true }
+    );
+
+  if (membershipError) {
+    return { success: false, message: '邀请码不存在或无权限' };
+  }
+
   const { data, error } = await supabase
     .from('families')
     .select('familycode, familyname')
@@ -71,17 +100,23 @@ export const joinFamily = async (familyCode: string): Promise<{ success: boolean
     .single();
 
   if (error || !data) {
-    return { success: false, message: '邀请码不存在' };
+    return { success: false, message: '邀请码不存在或无权限' };
   }
 
   localStorage.setItem('familyId', familyCodeUpper);
-  return { 
-    success: true, 
-    message: '加入成功', 
-    familyName: data.familyname 
+  return {
+    success: true,
+    message: '加入成功',
+    familyName: data.familyname,
   };
 };
 
 export const initSupabase = async (): Promise<void> => {
-  return Promise.resolve();
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return;
+    await supabase.auth.signInAnonymously();
+  } catch {
+    return;
+  }
 };

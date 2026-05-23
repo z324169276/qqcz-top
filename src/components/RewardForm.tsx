@@ -21,8 +21,8 @@ export function RewardForm() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [points, setPoints] = useState(50);
-  const [stock, setStock] = useState(1);
+  const [points, setPoints] = useState<number | ''>(50);
+  const [stock, setStock] = useState<number | ''>(1);
   const [emoji, setEmoji] = useState('🎁');
   const addReward = useStore((state) => state.addReward);
 
@@ -46,17 +46,19 @@ export function RewardForm() {
       return;
     }
 
-    if (points < 1) {
+    const pointsValue = typeof points === 'number' ? points : NaN;
+    if (!Number.isFinite(pointsValue) || pointsValue < 1) {
       toast.error('积分必须大于0');
       return;
     }
 
-    if (stock < 1) {
+    const stockValue = typeof stock === 'number' ? stock : NaN;
+    if (!Number.isFinite(stockValue) || stockValue < 1) {
       toast.error('库存必须大于0');
       return;
     }
 
-    addReward(name.trim(), points, stock, emoji);
+    addReward(name.trim(), pointsValue, stockValue, emoji);
     toast.success('奖励创建成功');
     setName('');
     setPoints(50);
@@ -231,7 +233,15 @@ export function RewardForm() {
               <input
                 type="number"
                 value={points}
-                onChange={(e) => setPoints(Math.max(1, parseInt(e.target.value) || 1))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '') {
+                    setPoints('');
+                    return;
+                  }
+                  const n = parseInt(v, 10);
+                  setPoints(Number.isFinite(n) ? Math.max(1, n) : '');
+                }}
                 min="1"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all font-mono"
               />
@@ -248,7 +258,15 @@ export function RewardForm() {
             <input
               type="number"
               value={stock}
-              onChange={(e) => setStock(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === '') {
+                  setStock('');
+                  return;
+                }
+                const n = parseInt(v, 10);
+                setStock(Number.isFinite(n) ? Math.max(1, n) : '');
+              }}
               min="1"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all font-mono"
             />

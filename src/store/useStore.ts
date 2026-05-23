@@ -64,12 +64,14 @@ interface AppState {
   _hasHydrated: boolean;
   familyId: string | null;
   familyName: string;
+  lastModified: string | null;
   isLoading: boolean;
   streakRewards: StreakRewardConfig[];
 
   setFamilyId: (familyId: string) => void;
   setFamilyName: (name: string) => void;
   initializeSync: (familyId: string) => void;
+  refreshFromCloud: () => Promise<void>;
   hydrateFromLocal: (familyId: string) => void;
   updateStreakRewards: (rewards: StreakRewardConfig[]) => void;
   addTask: (name: string, points: number, category?: string, dueDate?: string, repeatType?: 'none' | 'daily' | 'weekly') => void;
@@ -88,12 +90,13 @@ interface AppState {
   completeTask: (taskId: string) => { success: boolean; message: string };
 }
 
-const syncToCloud = async (familyId: string, data: Record<string, any>, retryCount = 0) => {
+const syncToCloud = async (familyId: string, data: Record<string, any>, retryCount = 0, mutationId?: number) => {
+  const effectiveMutationId = mutationId ?? Date.now();
   try {
     await api.updateFamily(familyId, data);
 
     const pendingSync = JSON.parse(localStorage.getItem('pendingSync') || '[]');
-    const filtered = pendingSync.filter((item: any) => item.timestamp !== data.timestamp);
+    const filtered = pendingSync.filter((item: any) => item.timestamp !== effectiveMutationId);
     localStorage.setItem('pendingSync', JSON.stringify(filtered));
     
   } catch (error: any) {
@@ -102,7 +105,7 @@ const syncToCloud = async (familyId: string, data: Record<string, any>, retryCou
     const pendingItem = {
       familyId,
       data,
-      timestamp: Date.now(),
+      timestamp: effectiveMutationId,
     };
     const pendingSync = JSON.parse(localStorage.getItem('pendingSync') || '[]');
     const exists = pendingSync.some((item: any) => 
@@ -115,7 +118,7 @@ const syncToCloud = async (familyId: string, data: Record<string, any>, retryCou
 
     if (retryCount < SYNC_RETRY_TIMES - 1) {
       await new Promise(resolve => setTimeout(resolve, SYNC_RETRY_DELAY * (retryCount + 1)));
-      return syncToCloud(familyId, data, retryCount + 1);
+      return syncToCloud(familyId, data, retryCount + 1, effectiveMutationId);
     }
   }
 };
@@ -125,7 +128,7 @@ const syncPendingData = async (familyId: string) => {
   const familyPending = pendingSync.filter((item: any) => item.familyId === familyId);
   
   for (const item of familyPending) {
-    await syncToCloud(familyId, item.data);
+    await syncToCloud(familyId, item.data, 0, item.timestamp);
   }
 };
 
@@ -139,6 +142,7 @@ const baseStore = (set: any, get: any) => ({
   _hasHydrated: false,
   familyId: null,
   familyName: '',
+  lastModified: null,
   isLoading: true,
   streakRewards: defaultStreakRewards,
 
@@ -171,6 +175,7 @@ const baseStore = (set: any, get: any) => ({
       const currentMember = members.find((m: Member) => m.id === currentMemberId);
 
       const streakRewards = data.streak_rewards || defaultStreakRewards;
+      const lastModified = (data as any).lastModified || (data as any).lastmodified || null;
 
       set({
         points: currentMember?.points || data.points || 0,
@@ -181,6 +186,7 @@ const baseStore = (set: any, get: any) => ({
         members: members,
         currentMemberId: currentMemberId,
         streakRewards: streakRewards,
+        lastModified,
         _hasHydrated: true,
         isLoading: false,
       });
@@ -192,6 +198,41 @@ const baseStore = (set: any, get: any) => ({
         isLoading: false,
       });
     }
+  },
+
+  refreshFromCloud: async () => {
+    const state = get();
+    if (!state.familyId) return;
+    const data = await api.getFamily(state.familyId);
+    if (!data) return;
+
+    const remoteLastModified = (data as any).lastModified || (data as any).lastmodified || null;
+    if (remoteLastModified && state.lastModified && remoteLastModified === state.lastModified) return;
+
+    const members = data.members || [];
+    const storedMemberId = localStorage.getItem('memberId');
+    let currentMemberId = storedMemberId || state.currentMemberId || '';
+    if (members.length > 0) {
+      if (!currentMemberId || !members.find((m: Member) => m.id === currentMemberId)) {
+        currentMemberId = members[0].id;
+        localStorage.setItem('memberId', currentMemberId);
+      }
+    }
+
+    const currentMember = members.find((m: Member) => m.id === currentMemberId);
+    const streakRewards = data.streak_rewards || defaultStreakRewards;
+
+    set({
+      points: currentMember?.points || data.points || 0,
+      tasks: data.tasks || [],
+      rewards: data.rewards || [],
+      history: data.history || [],
+      familyName: data.familyname || '',
+      members: members,
+      currentMemberId: currentMemberId,
+      streakRewards: streakRewards,
+      lastModified: remoteLastModified,
+    });
   },
 
   hydrateFromLocal: (familyId: string) => {
@@ -227,6 +268,7 @@ const baseStore = (set: any, get: any) => ({
       currentMemberId,
       familyName: storedFamilyName || '',
       streakRewards,
+      lastModified: null,
       _hasHydrated: true,
     });
   },
@@ -579,6 +621,7 @@ export const useStore = create<AppState>()(
       currentMemberId: state.currentMemberId,
       familyName: state.familyName,
       streakRewards: state.streakRewards,
+      lastModified: state.lastModified,
     }),
   })
 );
