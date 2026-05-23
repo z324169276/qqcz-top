@@ -19,6 +19,22 @@ export const joinFamily = async (familyCode: string): Promise<{ success: boolean
   return supabaseApi.joinFamily(familyCode);
 };
 
+export const ensureMembership = async (familyCode: string) => {
+  if (USE_CLOUDBase) {
+    return;
+  }
+  const { data: userData } = await supabaseApi.supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) return;
+
+  await supabaseApi.supabase
+    .from('family_memberships')
+    .upsert(
+      { user_id: userId, familycode: familyCode },
+      { onConflict: 'user_id,familycode', ignoreDuplicates: true }
+    );
+};
+
 export const updateFamily = async (familyCode: string, data: Record<string, any>) => {
   if (USE_CLOUDBase) {
     return cloudbaseApi.updateFamily(familyCode, data);

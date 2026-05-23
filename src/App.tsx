@@ -9,7 +9,7 @@ import StatsPage from './components/StatsPage';
 import { FamilySetup, FamilyCodeDisplay } from './components/FamilySetup';
 import { Footer } from './components/Footer';
 import { AdminDashboard } from './components/AdminDashboard';
-import { initCloud } from './api';
+import { ensureMembership, initCloud } from './api';
 import { useStore } from './store/useStore';
 import { applyTheme } from './components/ThemeSwitcher';
 import { LogoutProvider, useLogout } from './contexts/LogoutContext';
@@ -97,6 +97,7 @@ function AppContent() {
 
         if (storedFamilyId) {
           setFamilyId(storedFamilyId);
+          await ensureMembership(storedFamilyId);
           initializeSync(storedFamilyId);
           setShowFamilySetup(false);
         } else {
@@ -107,6 +108,7 @@ function AppContent() {
         
         if (storedFamilyId) {
           setFamilyId(storedFamilyId);
+          await ensureMembership(storedFamilyId);
           initializeSync(storedFamilyId);
         } else {
           setShowFamilySetup(true);
@@ -145,6 +147,7 @@ function AppContent() {
   const handleFamilyComplete = useCallback((newFamilyId: string) => {
     localStorage.setItem('familyId', newFamilyId);
     setFamilyId(newFamilyId);
+    ensureMembership(newFamilyId);
     initializeSync(newFamilyId);
     setShowFamilySetup(false);
     setIsLoggedOut(false);
