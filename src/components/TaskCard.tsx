@@ -13,6 +13,16 @@ export function TaskCard({ task }: TaskCardProps) {
   const deleteTask = useStore((state) => state.deleteTask);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const getTodayString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const isCompleted = !!task.completedToday || (Array.isArray(task.completedDates) && task.completedDates.includes(getTodayString()));
+
   const handleComplete = () => {
     const result = completeTask(task.id);
     if (result.success) {
@@ -54,7 +64,7 @@ export function TaskCard({ task }: TaskCardProps) {
   };
 
   const isOverdue = () => {
-    if (!task.dueDate || task.completed) return false;
+    if (!task.dueDate || isCompleted) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dueDate = new Date(task.dueDate);
@@ -68,15 +78,15 @@ export function TaskCard({ task }: TaskCardProps) {
     <>
       <div
         className={`bg-white rounded-2xl p-4 sm:p-5 card-shadow transition-all hover:card-shadow-lg ${
-          task.completed ? 'opacity-60' : ''
+          isCompleted ? 'opacity-60' : ''
         }`}
       >
         <div className="flex items-start gap-3 sm:gap-4">
           <button
             onClick={handleComplete}
-            disabled={task.completed}
+            disabled={isCompleted}
             className={`flex-shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-              task.completed
+              isCompleted
                 ? 'bg-secondary text-white'
                 : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
             }`}
@@ -87,7 +97,7 @@ export function TaskCard({ task }: TaskCardProps) {
           <div className="flex-1 min-w-0 pt-1">
             <h3
               className={`font-semibold text-base sm:text-lg ${
-                task.completed ? 'line-through text-gray-400' : 'text-gray-800'
+                isCompleted ? 'line-through text-gray-400' : 'text-gray-800'
               }`}
             >
               {task.name}

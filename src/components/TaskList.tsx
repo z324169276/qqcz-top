@@ -15,22 +15,6 @@ export function TaskList() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showCustomForm, setShowCustomForm] = useState(false);
 
-  const memberTasks = tasks.filter((t) => !t.memberId || t.memberId === currentMemberId);
-  const activeTasks = memberTasks.filter((t) => !t.completed);
-  const completedTasks = memberTasks.filter((t) => t.completed);
-
-  const filteredActiveTasks = filterDate
-    ? activeTasks.filter((t) => t.dueDate === filterDate)
-    : activeTasks;
-
-  const filteredCompletedTasks = filterDate
-    ? completedTasks.filter((t) => {
-        if (!t.completedAt) return false;
-        const taskDate = t.completedAt.split('T')[0];
-        return taskDate === filterDate;
-      })
-    : completedTasks;
-
   const getTodayString = () => {
     const today = new Date();
     const year = today.getFullYear();
@@ -38,6 +22,28 @@ export function TaskList() {
     const day = String(today.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  const todayStr = getTodayString();
+
+  const isTaskCompletedOnDate = (task: any, dateStr: string) => {
+    return Array.isArray(task.completedDates) ? task.completedDates.includes(dateStr) : false;
+  };
+
+  const isTaskCompletedToday = (task: any) => {
+    return !!task.completedToday || isTaskCompletedOnDate(task, todayStr);
+  };
+
+  const memberTasks = tasks.filter((t) => !t.memberId || t.memberId === currentMemberId);
+  const activeTasks = memberTasks.filter((t) => !isTaskCompletedToday(t));
+  const completedTasks = memberTasks.filter((t) => isTaskCompletedToday(t));
+
+  const filteredActiveTasks = filterDate
+    ? activeTasks.filter((t) => t.dueDate === filterDate)
+    : activeTasks;
+
+  const filteredCompletedTasks = filterDate
+    ? completedTasks.filter((t) => isTaskCompletedOnDate(t, filterDate))
+    : completedTasks;
 
   const handleSelectTemplate = (template: TaskTemplate) => {
     addTask(template.name, template.points, template.category, getTodayString());
