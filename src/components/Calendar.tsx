@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/useStore';
+import { calculateStreakFromHistory } from '../lib/streak';
 
 const Calendar = () => {
   const history = useStore((state) => state.history);
@@ -88,26 +89,8 @@ const Calendar = () => {
   }, [memberHistory]);
 
   const streakDays = useMemo(() => {
-    let streak = 0;
-    const today = new Date();
-    
-    for (let i = 0; i < 365; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = formatLocalDate(date);
-      const hasActivity = memberHistory.some(
-        (item) => item.date === dateStr || (item.timestamp && formatLocalDate(new Date(item.timestamp)) === dateStr)
-      );
-      
-      if (hasActivity) {
-        streak++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-    
-    return streak;
-  }, [memberHistory]);
+    return calculateStreakFromHistory(memberHistory as any, currentMemberId);
+  }, [memberHistory, currentMemberId]);
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">

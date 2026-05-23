@@ -1,6 +1,7 @@
 import React from 'react';
 import { Flame, Gift, TrendingUp, Calendar, CheckCircle2, Settings } from 'lucide-react';
 import { useStore, StreakRewardConfig } from '../store/useStore';
+import { calculateStreakFromHistory } from '../lib/streak';
 
 interface StreakDisplayProps {
   compact?: boolean;
@@ -11,41 +12,7 @@ export const StreakDisplay = ({ compact = false, onOpenSettings }: StreakDisplay
   const history = useStore((state) => state.history);
   const currentMemberId = useStore((state) => state.currentMemberId);
   const streakRewards = useStore((state) => state.streakRewards);
-
-  const calculateStreak = () => {
-    if (history.length === 0) return 0;
-    
-    const memberHistory = currentMemberId 
-      ? history.filter(h => h.memberId === currentMemberId)
-      : history;
-    
-    const completedTasks = memberHistory.filter(h => h.type === 'earn' && h.date);
-    
-    if (completedTasks.length === 0) return 0;
-    
-    let streak = 0;
-    let checkDate = new Date();
-    checkDate.setHours(0, 0, 0, 0);
-    
-    for (let i = 0; i < 365; i++) {
-      const dateStr = checkDate.toISOString().split('T')[0];
-      const hasTaskOnDate = completedTasks.some(h => h.date === dateStr);
-      
-      if (hasTaskOnDate) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else if (i === 0) {
-        checkDate.setDate(checkDate.getDate() - 1);
-        continue;
-      } else {
-        break;
-      }
-    }
-    
-    return streak;
-  };
-
-  const currentStreak = calculateStreak();
+  const currentStreak = calculateStreakFromHistory(history as any, currentMemberId);
 
   const getCurrentReward = () => {
     let reward: StreakRewardConfig | null = null;

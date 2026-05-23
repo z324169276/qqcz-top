@@ -11,6 +11,7 @@ import MemberPanel from './MemberPanel';
 import { getLevel } from '../data/levels';
 import { useLogout } from '../contexts/LogoutContext';
 import { DirectPointsEditor } from './DirectPointsEditor';
+import { calculateStreakFromHistory } from '../lib/streak';
 
 interface HeaderProps {
   onShowAdmin?: () => void;
@@ -23,6 +24,7 @@ export function Header({ onShowAdmin }: HeaderProps) {
   const rewards = useStore((state) => state.rewards);
   const members = useStore((state) => state.members);
   const familyName = useStore((state) => state.familyName);
+  const currentMemberId = useStore((state) => state.currentMemberId);
   const adjustPoints = useStore((state) => state.adjustPoints);
   const { triggerLogout } = useLogout();
   const clickCount = useRef(0);
@@ -154,33 +156,7 @@ export function Header({ onShowAdmin }: HeaderProps) {
     return `${year}-${month}-${day}`;
   };
 
-  const calculateStreak = () => {
-    if (history.length === 0) return 0;
-    
-    const completedTasks = history.filter(h => h.type === 'earn' && h.date);
-    
-    if (completedTasks.length === 0) return 0;
-    
-    let streak = 0;
-    let checkDate = new Date();
-    
-    for (let i = 0; i < 365; i++) {
-      const dateStr = checkDate.toISOString().split('T')[0];
-      const hasTaskOnDate = completedTasks.some(h => h.date === dateStr);
-      
-      if (hasTaskOnDate) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else if (i === 0) {
-        checkDate.setDate(checkDate.getDate() - 1);
-        continue;
-      } else {
-        break;
-      }
-    }
-    
-    return streak;
-  };
+  const calculateStreak = () => calculateStreakFromHistory(history as any, currentMemberId);
 
   const getStats = () => {
     const completedTasks = history.filter(h => h.type === 'earn').length;
