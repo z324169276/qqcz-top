@@ -10,9 +10,11 @@ import { FamilySetup, FamilyCodeDisplay } from './components/FamilySetup';
 import { Footer } from './components/Footer';
 import { AdminDashboard } from './components/AdminDashboard';
 import { ensureMembership, initCloud } from './api';
+import { bindFamilyOwnerEmail } from './api';
 import { useStore } from './store/useStore';
 import { applyTheme } from './components/ThemeSwitcher';
 import { LogoutProvider, useLogout } from './contexts/LogoutContext';
+import toast from 'react-hot-toast';
 
 type TabType = 'tasks' | 'rewards' | 'history' | 'stats';
 
@@ -98,6 +100,28 @@ function AppContent() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [familyId, refreshFromCloud]);
+
+  useEffect(() => {
+    if (!familyId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('bindOwner')) return;
+
+    const run = async () => {
+      try {
+        await bindFamilyOwnerEmail(familyId);
+        toast.success('邮箱绑定成功，可用于找回家庭码');
+      } catch (e: any) {
+        toast.error(e?.message || '邮箱绑定失败');
+      } finally {
+        params.delete('bindOwner');
+        const query = params.toString();
+        const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        window.history.replaceState(null, '', nextUrl);
+      }
+    };
+
+    run();
+  }, [familyId]);
 
   const handleFamilyComplete = useCallback((newFamilyId: string) => {
     localStorage.setItem('familyId', newFamilyId);

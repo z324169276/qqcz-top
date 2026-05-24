@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Users, Copy, LogIn } from 'lucide-react';
-import { createFamily, joinFamily } from '../api';
+import { createFamily, joinFamily, listFamiliesByOwner, sendEmailLink, ensureMembership } from '../api';
 import toast from 'react-hot-toast';
 
 interface FamilySetupProps {
@@ -9,12 +9,39 @@ interface FamilySetupProps {
 }
 
 export function FamilySetup({ onComplete, onShowAdmin }: FamilySetupProps) {
-  const [mode, setMode] = useState<'choice' | 'create' | 'join'>('choice');
+  const [mode, setMode] = useState<'choice' | 'create' | 'join' | 'recover' | 'recoverList'>('choice');
   const [familyName, setFamilyName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [recoverEmail, setRecoverEmail] = useState('');
+  const [recoveredFamilies, setRecoveredFamilies] = useState<Array<{ familycode: string; familyname: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const clickCount = useRef(0);
   const clickTimer = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('recover')) return;
+
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const list = await listFamiliesByOwner();
+        setRecoveredFamilies(list as any);
+        setMode('recoverList');
+      } catch (e: any) {
+        toast.error(e?.message || '找回失败');
+        setMode('recover');
+      } finally {
+        setIsLoading(false);
+        params.delete('recover');
+        const query = params.toString();
+        const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+        window.history.replaceState(null, '', nextUrl);
+      }
+    };
+
+    run();
+  }, []);
 
   const handleLogoClick = () => {
     clickCount.current++;
@@ -72,6 +99,38 @@ export function FamilySetup({ onComplete, onShowAdmin }: FamilySetupProps) {
     }
   };
 
+  const handleSendRecoverEmail = async () => {
+    const value = recoverEmail.trim();
+    if (!value) {
+      toast.error('请输入邮箱');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const redirectTo = `${window.location.origin}/?recover=1`;
+      await sendEmailLink(value, redirectTo);
+      toast.success('已发送找回邮件，请打开邮件链接继续');
+    } catch (e: any) {
+      toast.error(e?.message || '发送失败');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEnterRecoveredFamily = async (familyCode: string) => {
+    setIsLoading(true);
+    try {
+      localStorage.setItem('familyId', familyCode);
+      await ensureMembership(familyCode);
+      toast.success('已进入家庭');
+      onComplete(familyCode);
+    } catch (e: any) {
+      toast.error(e?.message || '进入失败');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
@@ -101,6 +160,12 @@ export function FamilySetup({ onComplete, onShowAdmin }: FamilySetupProps) {
             >
               <LogIn className="w-5 h-5" />
               加入已有家庭
+            </button>
+            <button
+              onClick={() => setMode('recover')}
+              className="w-full py-3 px-6 bg-white border border-gray-200 text-gray-500 rounded-xl font-medium hover:border-indigo-600 hover:text-indigo-600 transition-all"
+            >
+              忘记家庭码？用邮箱找回
             </button>
           </div>
         )}
@@ -160,6 +225,78 @@ export function FamilySetup({ onComplete, onShowAdmin }: FamilySetupProps) {
             >
               {isLoading ? '加入中...' : '加入家庭'}
             </button>
+            <button
+              onClick={() => setMode('choice')}
+              className="w-full py-3 text-gray-500 hover:text-gray-700 transition-all"
+            >
+              返回
+            </button>
+          </div>
+        )}
+
+        {mode === 'recover' && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              请输入绑定过的邮箱，我们会发送找回链接到邮箱。
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                邮箱
+              </label>
+              <input
+                type="email"
+                value={recoverEmail}
+                onChange={(e) => setRecoverEmail(e.target.value)}
+                placeholder="请输入邮箱"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all text-black"
+                autoFocus
+              />
+            </div>
+            <button
+              onClick={handleSendRecoverEmail}
+              disabled={isLoading}
+              className="w-full py-4 px-6 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-all disabled:opacity-50"
+            >
+              {isLoading ? '发送中...' : '发送找回邮件'}
+            </button>
+            <button
+              onClick={() => setMode('choice')}
+              className="w-full py-3 text-gray-500 hover:text-gray-700 transition-all"
+            >
+              返回
+            </button>
+          </div>
+        )}
+
+        {mode === 'recoverList' && (
+          <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              找回结果（选择一个家庭进入）：
+            </div>
+            {recoveredFamilies.length === 0 ? (
+              <div className="text-sm text-gray-500">
+                没有找到已绑定的家庭码。请确认该邮箱之前已在某个家庭内绑定。
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recoveredFamilies.map((f) => (
+                  <div key={f.familycode} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs text-gray-500">家庭邀请码</div>
+                      <div className="text-xl font-mono font-bold text-gray-800 tracking-wider">{f.familycode}</div>
+                      <div className="text-sm text-gray-600 truncate">{f.familyname}</div>
+                    </div>
+                    <button
+                      onClick={() => handleEnterRecoveredFamily(f.familycode)}
+                      disabled={isLoading}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-all disabled:opacity-50"
+                    >
+                      进入
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <button
               onClick={() => setMode('choice')}
               className="w-full py-3 text-gray-500 hover:text-gray-700 transition-all"

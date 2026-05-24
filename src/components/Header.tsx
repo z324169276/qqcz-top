@@ -1,4 +1,4 @@
-import { Sparkles, Plus, Minus, Calendar, Trophy, Shield, Settings, Users, Download, LogOut, Activity, Edit3 } from 'lucide-react';
+import { Sparkles, Plus, Minus, Calendar, Trophy, Shield, Settings, Users, Download, LogOut, Activity, Edit3, Mail } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
@@ -12,6 +12,7 @@ import { getLevel } from '../data/levels';
 import { useLogout } from '../contexts/LogoutContext';
 import { DirectPointsEditor } from './DirectPointsEditor';
 import { calculateStreakFromHistory } from '../lib/streak';
+import { EmailBindModal } from './EmailBindModal';
 
 interface HeaderProps {
   onShowAdmin?: () => void;
@@ -25,6 +26,7 @@ export function Header({ onShowAdmin }: HeaderProps) {
   const members = useStore((state) => state.members);
   const familyName = useStore((state) => state.familyName);
   const currentMemberId = useStore((state) => state.currentMemberId);
+  const familyId = useStore((state) => state.familyId);
   const adjustPoints = useStore((state) => state.adjustPoints);
   const { triggerLogout } = useLogout();
   const clickCount = useRef(0);
@@ -52,6 +54,7 @@ export function Header({ onShowAdmin }: HeaderProps) {
   const [showMemberPanel, setShowMemberPanel] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [showDirectEditor, setShowDirectEditor] = useState(false);
+  const [showEmailBind, setShowEmailBind] = useState(false);
   const [isAdjustmentEnabled, setIsAdjustmentEnabled] = useState(false);
   const [amount, setAmount] = useState<number | ''>('');
   const [reason, setReason] = useState('');
@@ -249,6 +252,15 @@ export function Header({ onShowAdmin }: HeaderProps) {
               </button>
 
               <button
+                onClick={() => setShowEmailBind(true)}
+                className="flex-shrink-0 text-xs sm:text-sm text-white/80 hover:text-white transition-colors flex items-center gap-1 bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg active:scale-95"
+                title="绑定邮箱找回"
+              >
+                <Mail className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">找回</span>
+              </button>
+
+              <button
                 onClick={() => setShowAchievements(true)}
                 className="flex-shrink-0 text-xs sm:text-sm text-white/80 hover:text-white transition-colors flex items-center gap-1 bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg active:scale-95"
               >
@@ -427,6 +439,12 @@ export function Header({ onShowAdmin }: HeaderProps) {
       <DirectPointsEditor
         isOpen={showDirectEditor}
         onClose={() => setShowDirectEditor(false)}
+      />
+
+      <EmailBindModal
+        isOpen={showEmailBind}
+        onClose={() => setShowEmailBind(false)}
+        familyId={familyId || ''}
       />
     </>
   );

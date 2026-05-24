@@ -69,6 +69,67 @@ export const initCloud = async () => {
   return supabaseApi.initSupabase();
 };
 
+export const getUser = async () => {
+  if (USE_CLOUDBase) {
+    return { user: null as any };
+  }
+  const { data } = await supabaseApi.supabase.auth.getUser();
+  return { user: data.user };
+};
+
+export const sendEmailLink = async (email: string, redirectTo: string) => {
+  if (USE_CLOUDBase) {
+    throw new Error('当前未启用该功能');
+  }
+  const { error } = await supabaseApi.supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo },
+  });
+  if (error) throw error;
+};
+
+export const bindFamilyOwnerEmail = async (familyCode: string) => {
+  if (USE_CLOUDBase) {
+    throw new Error('当前未启用该功能');
+  }
+
+  const { data } = await supabaseApi.supabase.auth.getUser();
+  const user = data.user;
+  if (!user) throw new Error('登录状态异常，请重新打开邮件链接');
+  if (!user.email) throw new Error('未获取到邮箱信息');
+
+  const { error } = await supabaseApi.supabase
+    .from('families')
+    .update({
+      owner_user_id: user.id,
+      owner_email: user.email,
+      lastModified: new Date().toISOString(),
+    })
+    .eq('familycode', familyCode);
+
+  if (error) throw error;
+
+  await ensureMembership(familyCode);
+};
+
+export const listFamiliesByOwner = async () => {
+  if (USE_CLOUDBase) {
+    throw new Error('当前未启用该功能');
+  }
+
+  const { data } = await supabaseApi.supabase.auth.getUser();
+  const user = data.user;
+  if (!user) throw new Error('请先打开邮件里的登录链接');
+
+  const { data: families, error } = await supabaseApi.supabase
+    .from('families')
+    .select('familycode, familyname')
+    .eq('owner_user_id', user.id);
+
+  if (error) throw error;
+  return families || [];
+};
+
 export const getClient = () => {
   if (USE_CLOUDBase) {
     return { type: 'cloudbase', client: null };
