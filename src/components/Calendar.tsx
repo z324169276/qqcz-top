@@ -4,6 +4,7 @@ import { calculateStreakFromHistory } from '../lib/streak';
 
 const Calendar = () => {
   const history = useStore((state) => state.history);
+  const points = useStore((state) => state.points);
   const currentMemberId = useStore((state) => state.currentMemberId);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -37,7 +38,17 @@ const Calendar = () => {
     return memberHistory
       .filter((item) => item.date === dateStr || (item.timestamp && formatLocalDate(new Date(item.timestamp)) === dateStr))
       .reduce((sum, item) => {
-        return item.type === 'earn' ? sum + item.points : sum - item.points;
+        if (item.type === 'earn') return sum + item.points;
+        if (item.type === 'redeem') return sum - item.points;
+        if (item.type === 'adjust') {
+          const desc = String(item.description || '');
+          const isDecrease = desc.includes('扣') || desc.includes('减少');
+          const isIncrease = desc.includes('增') || desc.includes('增加');
+          if (isDecrease) return sum - item.points;
+          if (isIncrease) return sum + item.points;
+          return sum;
+        }
+        return sum;
       }, 0);
   };
 
@@ -77,10 +88,8 @@ const Calendar = () => {
   const monthName = currentMonth.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long' });
 
   const totalPoints = useMemo(() => {
-    return memberHistory.reduce((sum, item) => {
-      return item.type === 'earn' ? sum + item.points : sum - item.points;
-    }, 0);
-  }, [memberHistory]);
+    return points;
+  }, [points]);
 
   const completedTasks = useMemo(() => {
     return memberHistory.filter(
@@ -116,7 +125,7 @@ const Calendar = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 sm:p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-green-600">{totalPoints}</div>
-          <div className="text-xs sm:text-sm text-gray-500">累计积分</div>
+          <div className="text-xs sm:text-sm text-gray-500">当前积分</div>
         </div>
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 sm:p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-blue-600">{completedTasks}</div>
