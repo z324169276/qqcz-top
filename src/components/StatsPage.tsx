@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore';
 import Calendar from './Calendar';
 import StreakDisplay from './StreakDisplay';
 import ReportGenerator from './ReportGenerator';
+import StreakSettings from './StreakSettings';
 import { Calendar as CalendarIcon, Flame, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type StatsTab = 'calendar' | 'streak' | 'report';
@@ -52,12 +53,7 @@ export function StatsPage() {
       {showStreakSettings && activeStatsTab === 'streak' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="w-full max-w-md">
-            <button
-              onClick={() => setShowStreakSettings(false)}
-              className="absolute top-4 right-4 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg"
-            >
-              ✕
-            </button>
+            <StreakSettings onClose={() => setShowStreakSettings(false)} />
           </div>
         </div>
       )}

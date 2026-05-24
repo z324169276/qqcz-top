@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store/useStore';
-import { calculateStreakFromHistory } from '../lib/streak';
+import { calculateStreakFromHistory, formatLocalDate } from '../lib/streak';
 
 const Calendar = () => {
   const history = useStore((state) => state.history);
@@ -26,17 +26,26 @@ const Calendar = () => {
     return days;
   }, [currentMonth]);
 
-  const formatLocalDate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  const getItemLocalDate = (item: any) => {
+    if (item.timestamp) return formatLocalDate(new Date(item.timestamp));
+    if (item.date) return item.date;
+    return null;
   };
+
+  const monthHistory = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
+    const prefix = `${year}-${month}-`;
+    return memberHistory.filter((item) => {
+      const d = getItemLocalDate(item);
+      return typeof d === 'string' && d.startsWith(prefix);
+    });
+  }, [memberHistory, currentMonth]);
 
   const getDayPoints = (date: Date) => {
     const dateStr = formatLocalDate(date);
-    return memberHistory
-      .filter((item) => item.date === dateStr || (item.timestamp && formatLocalDate(new Date(item.timestamp)) === dateStr))
+    return monthHistory
+      .filter((item) => getItemLocalDate(item) === dateStr)
       .reduce((sum, item) => {
         if (item.type === 'earn') return sum + item.points;
         if (item.type === 'redeem') return sum - item.points;
@@ -54,12 +63,7 @@ const Calendar = () => {
 
   const getDayTasks = (date: Date) => {
     const dateStr = formatLocalDate(date);
-    return memberHistory.filter(
-      (item) => 
-        (item.date === dateStr || (item.timestamp && formatLocalDate(new Date(item.timestamp)) === dateStr)) && 
-        item.type === 'earn' && 
-        item.description.includes('完成任务')
-    ).length;
+    return monthHistory.filter((item) => getItemLocalDate(item) === dateStr && item.type === 'earn').length;
   };
 
   const getPointsColor = (points: number) => {
@@ -92,10 +96,23 @@ const Calendar = () => {
   }, [points]);
 
   const completedTasks = useMemo(() => {
-    return memberHistory.filter(
-      (item) => item.type === 'earn' && item.description.includes('完成任务')
-    ).length;
-  }, [memberHistory]);
+    return monthHistory.filter((item) => item.type === 'earn').length;
+  }, [monthHistory]);
+
+  const activeTaskDays = useMemo(() => {
+    const days = new Set<string>();
+    for (const item of monthHistory) {
+      if (item.type !== 'earn') continue;
+      const d = getItemLocalDate(item);
+      if (d) days.add(d);
+    }
+    return days.size;
+  }, [monthHistory]);
+
+  const avgTasksPerDay = useMemo(() => {
+    if (!completedTasks) return 0;
+    return Math.round((completedTasks / Math.max(activeTaskDays, 1)) * 10) / 10;
+  }, [completedTasks, activeTaskDays]);
 
   const streakDays = useMemo(() => {
     return calculateStreakFromHistory(memberHistory as any, currentMemberId);
@@ -129,17 +146,15 @@ const Calendar = () => {
         </div>
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 sm:p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-blue-600">{completedTasks}</div>
-          <div className="text-xs sm:text-sm text-gray-500">完成任务</div>
+          <div className="text-xs sm:text-sm text-gray-500">本月完成任务</div>
         </div>
         <div className="bg-gradient-to-br from-purple-50 to-purple-50 rounded-lg p-3 sm:p-4 text-center">
           <div className="text-2xl sm:text-3xl font-bold text-purple-600">{streakDays}</div>
           <div className="text-xs sm:text-sm text-gray-500">连续打卡</div>
         </div>
         <div className="bg-gradient-to-br from-orange-50 to-orange-50 rounded-lg p-3 sm:p-4 text-center">
-          <div className="text-2xl sm:text-3xl font-bold text-orange-600">
-            {Math.round((completedTasks / Math.max(streakDays, 1)) * 100)}%
-          </div>
-          <div className="text-xs sm:text-sm text-gray-500">日均任务</div>
+          <div className="text-2xl sm:text-3xl font-bold text-orange-600">{avgTasksPerDay}</div>
+          <div className="text-xs sm:text-sm text-gray-500">本月日均任务</div>
         </div>
       </div>
 

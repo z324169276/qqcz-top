@@ -160,10 +160,18 @@ export function Header({ onShowAdmin }: HeaderProps) {
 
   const getStats = () => {
     const completedTasks = history.filter(h => h.type === 'earn').length;
-    const rewardsRedeemed = history.filter(h => h.type === 'spend').length;
+    const rewardsRedeemed = history.filter(h => h.type === 'redeem').length;
     const totalPoints = history.reduce((sum, h) => {
       if (h.type === 'earn') return sum + h.points;
-      if (h.type === 'spend' || h.type === 'adjust') return sum - h.points;
+      if (h.type === 'redeem') return sum - h.points;
+      if (h.type === 'adjust') {
+        const desc = String(h.description || '');
+        const isDecrease = desc.includes('扣') || desc.includes('减少');
+        const isIncrease = desc.includes('增') || desc.includes('增加');
+        if (isDecrease) return sum - h.points;
+        if (isIncrease) return sum + h.points;
+        return sum;
+      }
       return sum;
     }, 0);
     
