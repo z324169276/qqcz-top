@@ -27,6 +27,7 @@ export function Header({ onShowAdmin }: HeaderProps) {
   const familyName = useStore((state) => state.familyName);
   const currentMemberId = useStore((state) => state.currentMemberId);
   const familyId = useStore((state) => state.familyId);
+  const ownerEmail = useStore((state) => state.ownerEmail);
   const adjustPoints = useStore((state) => state.adjustPoints);
   const { triggerLogout } = useLogout();
   const clickCount = useRef(0);
@@ -160,6 +161,26 @@ export function Header({ onShowAdmin }: HeaderProps) {
   };
 
   const calculateStreak = () => calculateStreakFromHistory(history as any, currentMemberId);
+
+  useEffect(() => {
+    if (!familyId) return;
+
+    if (ownerEmail) {
+      localStorage.removeItem(`emailBindPromptDismissed_${familyId}`);
+      return;
+    }
+
+    const key = `emailBindPromptDismissed_${familyId}`;
+    const today = getTodayString();
+    const dismissedAt = localStorage.getItem(key);
+    if (dismissedAt === today) return;
+
+    const timer = window.setTimeout(() => {
+      setShowEmailBind(true);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [familyId, ownerEmail]);
 
   const getStats = () => {
     const completedTasks = history.filter(h => h.type === 'earn').length;
@@ -443,7 +464,12 @@ export function Header({ onShowAdmin }: HeaderProps) {
 
       <EmailBindModal
         isOpen={showEmailBind}
-        onClose={() => setShowEmailBind(false)}
+        onClose={() => {
+          if (familyId && !ownerEmail) {
+            localStorage.setItem(`emailBindPromptDismissed_${familyId}`, getTodayString());
+          }
+          setShowEmailBind(false);
+        }}
         familyId={familyId || ''}
       />
     </>

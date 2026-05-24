@@ -64,6 +64,8 @@ interface AppState {
   _hasHydrated: boolean;
   familyId: string | null;
   familyName: string;
+  ownerUserId: string | null;
+  ownerEmail: string | null;
   lastModified: string | null;
   isLoading: boolean;
   streakRewards: StreakRewardConfig[];
@@ -142,6 +144,8 @@ const baseStore = (set: any, get: any) => ({
   _hasHydrated: false,
   familyId: null,
   familyName: '',
+  ownerUserId: null,
+  ownerEmail: null,
   lastModified: null,
   isLoading: true,
   streakRewards: defaultStreakRewards,
@@ -181,6 +185,8 @@ const baseStore = (set: any, get: any) => ({
       const normalizedMembers = members.map((m: Member) =>
         m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
       );
+      const ownerUserId = (data as any).owner_user_id ?? null;
+      const ownerEmail = (data as any).owner_email ?? null;
 
       set({
         points: chosenPoints,
@@ -192,6 +198,8 @@ const baseStore = (set: any, get: any) => ({
         currentMemberId: currentMemberId,
         streakRewards: streakRewards,
         lastModified,
+        ownerUserId,
+        ownerEmail,
         _hasHydrated: true,
         isLoading: false,
       });
@@ -232,6 +240,8 @@ const baseStore = (set: any, get: any) => ({
     const normalizedMembers = members.map((m: Member) =>
       m.id === currentMemberId && remotePoints ? { ...m, points: remotePoints } : m
     );
+    const ownerUserId = (data as any).owner_user_id ?? null;
+    const ownerEmail = (data as any).owner_email ?? null;
 
     set({
       points: chosenPoints,
@@ -243,6 +253,8 @@ const baseStore = (set: any, get: any) => ({
       currentMemberId: currentMemberId,
       streakRewards: streakRewards,
       lastModified: remoteLastModified,
+      ownerUserId,
+      ownerEmail,
     });
   },
 
@@ -612,6 +624,8 @@ const baseStore = (set: any, get: any) => ({
       _hasHydrated: false,
       familyId: null,
       familyName: '',
+      ownerUserId: null,
+      ownerEmail: null,
       isLoading: true,
       streakRewards: defaultStreakRewards,
     });

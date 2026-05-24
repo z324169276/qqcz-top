@@ -109,6 +109,9 @@ function AppContent() {
     const run = async () => {
       try {
         await bindFamilyOwnerEmail(familyId);
+        if (refreshFromCloud) {
+          await refreshFromCloud();
+        }
         toast.success('邮箱绑定成功，可用于找回家庭码');
       } catch (e: any) {
         toast.error(e?.message || '邮箱绑定失败');
@@ -121,7 +124,7 @@ function AppContent() {
     };
 
     run();
-  }, [familyId]);
+  }, [familyId, refreshFromCloud]);
 
   const handleFamilyComplete = useCallback((newFamilyId: string) => {
     localStorage.setItem('familyId', newFamilyId);
