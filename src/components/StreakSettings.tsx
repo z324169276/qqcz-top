@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Flame, Settings, Save, RotateCcw } from 'lucide-react';
-import { useStore, StreakRewardConfig, defaultStreakRewards } from '../store/useStore';
+import { useStore, defaultStreakRewards } from '../store/useStore';
+import type { StreakRewardConfig } from '../store/useStore';
 
 const emojiOptions = ['🌟', '🔥', '🏆', '💎', '👑', '⭐', '✨', '🎉', '🎊', '💪', '🚀', '🌈', '💫', '🏅', '🥇', '🎖️'];
 

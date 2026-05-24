@@ -1,6 +1,7 @@
 import React from 'react';
 import { Flame, Gift, TrendingUp, Calendar, CheckCircle2, Settings } from 'lucide-react';
-import { useStore, StreakRewardConfig } from '../store/useStore';
+import { useStore } from '../store/useStore';
+import type { StreakRewardConfig } from '../store/useStore';
 import { calculateStreakFromHistory } from '../lib/streak';
 
 interface StreakDisplayProps {

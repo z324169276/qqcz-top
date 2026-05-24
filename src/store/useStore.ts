@@ -42,13 +42,13 @@ interface Member {
   points: number;
 }
 
-interface StreakRewardConfig {
+export interface StreakRewardConfig {
   days: number;
   points: number;
   enabled: boolean;
 }
 
-const defaultStreakRewards: StreakRewardConfig[] = [
+export const defaultStreakRewards: StreakRewardConfig[] = [
   { days: 7, points: 50, enabled: true },
   { days: 14, points: 150, enabled: false },
   { days: 30, points: 500, enabled: false },
